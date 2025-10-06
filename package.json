@@ -1,0 +1,8 @@
+{
+  "name": "fake-dsp",
+  "version": "1.0.0",
+  "type": "module",
+  "dependencies": {
+    "fastify": "^4.28.1"
+  }
+}
