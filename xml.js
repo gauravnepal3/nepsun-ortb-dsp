@@ -117,14 +117,36 @@ app.get('/bid', async (request, reply) => {
     return reply.send(response);
 });
 
-app.get('/stats', async (_request, reply) => {
+app.get('/stats', async (request, reply) => {
     const today = new Date().toISOString().slice(0, 10);
+    const { from = today, to = today } = request.query;
 
-    const data = STATS_SUB_IDS.map((sub_id) => {
-        const clicks = Math.floor(10000 + Math.random() * 25000);
-        const revenue = (clicks * (0.000004 + Math.random() * 0.000002)).toFixed(5);
-        return { date: today, revenue, sub_id: String(sub_id), clicks: String(clicks) };
-    });
+    // Generate all dates in [from, to] range
+    const dates = [];
+    const cursor = new Date(from);
+    const end = new Date(to);
+    while (cursor <= end) {
+        dates.push(cursor.toISOString().slice(0, 10));
+        cursor.setDate(cursor.getDate() + 1);
+    }
+
+    // Deterministic-ish seed per date+subid so repeated calls return same values
+    const seededRand = (seed) => {
+        let s = seed;
+        s = ((s >> 16) ^ s) * 0x45d9f3b | 0;
+        s = ((s >> 16) ^ s) * 0x45d9f3b | 0;
+        s = (s >> 16) ^ s;
+        return (s >>> 0) / 0xffffffff;
+    };
+
+    const data = dates.flatMap((date) =>
+        STATS_SUB_IDS.map((sub_id) => {
+            const seed = [...(date + sub_id)].reduce((acc, c) => acc * 31 + c.charCodeAt(0), 1);
+            const clicks = Math.floor(10000 + seededRand(seed) * 25000);
+            const revenue = (clicks * (0.000004 + seededRand(seed + 1) * 0.000002)).toFixed(5);
+            return { date, revenue, sub_id: String(sub_id), clicks: String(clicks) };
+        })
+    );
 
     const totalClicks = data.reduce((s, r) => s + Number(r.clicks), 0);
     const totalRevenue = data.reduce((s, r) => s + Number(r.revenue), 0).toFixed(5);
